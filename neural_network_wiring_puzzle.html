@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reconnect the Neural Network!</title>
+<style>
+  :root {
+    --ink:#17324d; --muted:#61758a; --blue:#2878c8; --teal:#18a7a0;
+    --gold:#f2b84b; --coral:#e87968; --paper:#f4f8fc; --line:#d7e3ef;
+    --green:#21865b; --red:#c94c4c;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:ui-rounded,"Trebuchet MS",system-ui,sans-serif; background:#eaf1f8; color:var(--ink); }
+  .game { max-width:1050px; margin:0 auto; padding:18px; }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .brand { display:flex; align-items:center; gap:10px; }
+  .logo { width:42px;height:42px;border-radius:13px;background:#d8eff0;display:grid;place-items:center;font-size:24px; }
+  h1 { font-size:clamp(21px,3vw,30px); margin:0; letter-spacing:-.5px; }
+  .sub { color:var(--muted); font-size:13px; margin-top:3px; }
+  .progress { background:white; border:1px solid var(--line); border-radius:999px; padding:8px 13px; font-weight:800; font-size:13px; }
+  .intro { background:#fff; border:1px solid var(--line); border-radius:18px; padding:16px 18px; box-shadow:0 5px 16px #24476a0a; }
+  .intro strong { color:#135e82; }
+  .intro p { margin:5px 0 0; line-height:1.45; color:#4e657b; font-size:14px; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; margin:13px 2px 9px; font-size:12px; color:var(--muted); }
+  .dot { display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle; }
+  .board { position:relative; background:linear-gradient(180deg,#fbfdff,#f1f7fc); border:1px solid var(--line); border-radius:20px; min-height:320px; overflow:hidden; padding:24px 14px 18px; }
+  .board:before { content:""; position:absolute; inset:0; opacity:.24; pointer-events:none; background-image:radial-gradient(#a8c0d5 1px,transparent 1px); background-size:19px 19px; }
+  .network { position:relative; z-index:1; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; align-items:center; min-height:255px; }
+  .neuron { position:relative; min-width:0; height:218px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .cell { position:relative; width:100%; max-width:190px; height:170px; border:2px solid #c5d9eb; border-radius:17px; background:#fff; box-shadow:0 5px 12px #24476a0d; display:flex; align-items:center; justify-content:center; }
+  .cell.active { border-color:var(--blue); box-shadow:0 0 0 4px #2878c81c,0 5px 12px #24476a0d; }
+  .cell.done { border-color:#70b99a; background:#f5fcf8; }
+  .cell svg { width:100%; height:100%; overflow:visible; }
+  .label { position:absolute; top:9px; left:11px; font-size:12px; font-weight:900; color:#48647d; background:#edf4fa; border-radius:7px; padding:4px 7px; }
+  .role { position:absolute; bottom:9px; font-size:11px; color:#72869a; font-weight:700; }
+  .port { position:absolute; width:23px;height:23px;border:3px solid white;border-radius:50%;cursor:pointer;z-index:5;box-shadow:0 0 0 2px currentColor; transition:transform .12s,box-shadow .12s; }
+  .port:hover,.port:focus { transform:scale(1.18); outline:none; box-shadow:0 0 0 4px #17324d25,0 0 0 2px currentColor; }
+  .port.source { right:-12px; top:calc(50% - 11px); background:var(--gold); color:#c28a20; }
+  .port.target { left:-12px; top:calc(50% - 11px); background:var(--teal); color:#12857f; }
+  .port.selected { box-shadow:0 0 0 5px #f2b84b55,0 0 0 2px currentColor; transform:scale(1.18); }
+  .port.connected { background:var(--green); color:var(--green); }
+  .port-label { position:absolute; font-size:10px; font-weight:800; color:#6d8296; white-space:nowrap; }
+  .source + .port-label { right:-5px; top:calc(50% + 17px); transform:translateX(50%); }
+  .target + .port-label { left:-5px; top:calc(50% + 17px); transform:translateX(-50%); }
+  .wire-layer { position:absolute; inset:0; width:100%; height:100%; z-index:2; pointer-events:none; overflow:visible; }
+  .wire { fill:none; stroke:#8ca6bd; stroke-width:4; stroke-linecap:round; }
+  .wire.correct { stroke:var(--green); }
+  .wire.animated { stroke-dasharray:9 8; animation:flow .55s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset:-17; } }
+  .signal { fill:#f2b84b; stroke:white; stroke-width:2; filter:drop-shadow(0 2px 3px #9c731b55); }
+  .controls { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:13px; }
+  .status { flex:1; min-width:220px; background:#fff; border:1px solid var(--line); border-radius:13px; padding:11px 13px; color:#526b82; font-size:13px; min-height:44px; }
+  .status.good { background:#f0faf5; border-color:#b9dfca; color:#176b48; }
+  .status.bad { background:#fff5f3; border-color:#f0c5be; color:#a43d36; }
+  button { border:0; border-radius:12px; padding:11px 15px; font:800 13px inherit; font-family:inherit; cursor:pointer; transition:transform .12s,opacity .12s; }
+  button:hover { transform:translateY(-1px); }
+  button:focus-visible { outline:3px solid #8bb9e5; outline-offset:2px; }
+  .primary { background:var(--blue); color:white; box-shadow:0 4px 9px #2878c833; }
+  .secondary { background:#e6eef6; color:#36536d; }
+  button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+  .how { display:flex; gap:10px; align-items:flex-start; margin-top:12px; color:#60768b; font-size:12px; line-height:1.45; }
+  .how b { color:#31536f; }
+  .bottom { margin-top:13px; display:flex; justify-content:space-between; gap:10px; align-items:center; color:#7a8ea1; font-size:11px; }
+  .modal { display:none; position:absolute; z-index:10; inset:0; background:#17324d88; align-items:center; justify-content:center; padding:16px; }
+  .modal.show { display:flex; }
+  .modal-card { width:min(430px,100%); background:white; border-radius:20px; padding:22px; text-align:center; box-shadow:0 15px 45px #102a4455; }
+  .trophy { font-size:42px; }
+  .modal-card h2 { margin:7px 0; font-size:23px; }
+  .modal-card p { color:#5b7186; line-height:1.5; font-size:14px; }
+  @media(max-width:650px) {
+    .game{padding:11px}
+    .board{padding:14px 8px;min-height:270px}
+    .network{gap:6px;min-height:235px}
+    .neuron{height:205px}
+    .cell{height:145px;border-radius:12px}
+    .label{font-size:10px;left:5px;top:6px;padding:3px 5px}
+    .role{font-size:9px;bottom:6px}
+    .port{width:18px;height:18px}
+    .port.source{right:-9px;top:calc(50% - 9px)}
+    .port.target{left:-9px;top:calc(50% - 9px)}
+    .port-label{display:none}
+    .legend{font-size:10px;gap:9px}
+    .status{min-width:100%;order:3}
+    .controls{gap:7px}
+    button{padding:10px 11px;font-size:12px}
+  }
+</style>
+</head>
+<body>
+<div class="game">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">🧠</div>
+      <div><h1>Reconnect the Neural Network!</h1><div class="sub">A cell-to-cell communication puzzle</div></div>
+    </div>
+    <div class="progress" id="progress">0 of 3 connections made</div>
+  </header>
+
+  <section class="intro">
+    <strong>MISSION: Get the message to Neuron D!</strong>
+    <p>The network is disconnected. Connect each neuron's <b>axon terminals</b> to the next neuron's <b>dendrites</b>. When all three connections are correct, send a signal through the network!</p>
+  </section>
+
+  <div class="legend">
+    <span><i class="dot" style="background:#f2b84b"></i>Axon terminal — sends a message</span>
+    <span><i class="dot" style="background:#18a7a0"></i>Dendrites — receive a message</span>
+    <span><i class="dot" style="background:#21865b"></i>Completed connection</span>
+  </div>
+
+  <main class="board" id="board">
+    <svg class="wire-layer" id="wires" aria-hidden="true"></svg>
+    <div class="network">
+      <div class="neuron" data-neuron="A">
+        <div class="cell" id="cell-A">
+          <span class="label">NEURON A</span>
+          <svg viewBox="0 0 180 150" role="img" aria-label="Neuron with branching dendrites, cell body and long axon">
+            <g fill="none" stroke="#2878c8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M69 73 L45 73 L29 57 M45 73 L27 87 M45 73 L34 101 M69 73 L57 47 L43 35 M57 47 L63 29"/>
+              <path d="M83 73 C105 73 117 73 144 73" stroke="#e2a52f" stroke-width="5"/>
+              <path d="M144 73 L153 64 M144 73 L153 82" stroke="#e2a52f"/>
+            </g>
+            <circle cx="76" cy="73" r="19" fill="#b9d8f2" stroke="#2878c8" stroke-width="3"/>
+            <circle cx="76" cy="73" r="7" fill="#2878c8"/>
+            <path d="M98 66 L111 66 M98 80 L111 80" stroke="#e2a52f" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span class="role">Cell</span>
+        </div>
+        <button class="port source" data-port="A-out" aria-label="Neuron A axon terminal" title="Neuron A axon terminal"></button><span class="port-label">SEND</span>
+      </div>
+
+      <div class="neuron" data-neuron="B">
+        <div class="cell" id="cell-B">
+          <span class="label">NEURON B</span>
+          <svg viewBox="0 0 180 150" role="img" aria-label="Neuron with branching dendrites, cell body and long axon">
+            <g fill="none" stroke="#2878c8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M69 73 L45 73 L29 57 M45 73 L27 87 M45 73 L34 101 M69 73 L57 47 L43 35 M57 47 L63 29"/>
+              <path d="M83 73 C105 73 117 73 144 73" stroke="#e2a52f" stroke-width="5"/>
+              <path d="M144 73 L153 64 M144 73 L153 82" stroke="#e2a52f"/>
+            </g>
+            <circle cx="76" cy="73" r="19" fill="#b9d8f2" stroke="#2878c8" stroke-width="3"/><circle cx="76" cy="73" r="7" fill="#2878c8"/>
+          </svg>
+          <span class="role">Cell</span>
+        </div>
+        <button class="port target" data-port="B-in" aria-label="Neuron B dendrites" title="Neuron B dendrites"></button><span class="port-label">RECEIVE</span>
+        <button class="port source" data-port="B-out" aria-label="Neuron B axon terminal" title="Neuron B axon terminal"></button>
+        <span class="port-label">SEND</span>
+      </div>
+
+      <div class="neuron" data-neuron="C">
+        <div class="cell" id="cell-C">
+          <span class="label">NEURON C</span>
+          <svg viewBox="0 0 180 150" role="img" aria-label="Neuron with branching dendrites, cell body and long axon">
+            <g fill="none" stroke="#2878c8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M69 73 L45 73 L29 57 M45 73 L27 87 M45 73 L34 101 M69 73 L57 47 L43 35 M57 47 L63 29"/>
+              <path d="M83 73 C105 73 117 73 144 73" stroke="#e2a52f" stroke-width="5"/>
+              <path d="M144 73 L153 64 M144 73 L153 82" stroke="#e2a52f"/>
+            </g>
+            <circle cx="76" cy="73" r="19" fill="#b9d8f2" stroke="#2878c8" stroke-width="3"/><circle cx="76" cy="73" r="7" fill="#2878c8"/>
+          </svg>
+          <span class="role">Cell</span>
+        </div>
+        <button class="port target" data-port="C-in" aria-label="Neuron C dendrites" title="Neuron C dendrites"></button><span class="port-label">RECEIVE</span>
+        <button class="port source" data-port="C-out" aria-label="Neuron C axon terminal" title="Neuron C axon terminal"></button>
+        <span class="port-label">SEND</span>
+      </div>
+
+      <div class="neuron" data-neuron="D">
+        <div class="cell" id="cell-D">
+          <span class="label">NEURON D</span>
+          <svg viewBox="0 0 180 150" role="img" aria-label="Neuron with branching dendrites and cell body">
+            <g fill="none" stroke="#2878c8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M69 73 L45 73 L29 57 M45 73 L27 87 M45 73 L34 101 M69 73 L57 47 L43 35 M57 47 L63 29"/>
+            </g>
+            <circle cx="76" cy="73" r="19" fill="#b9d8f2" stroke="#2878c8" stroke-width="3"/><circle cx="76" cy="73" r="7" fill="#2878c8"/>
+          </svg>
+          <span class="role">Cell</span>
+        </div>
+        <button class="port target" data-port="D-in" aria-label="Neuron D dendrites" title="Neuron D dendrites"></button><span class="port-label">RECEIVE</span>
+      </div>
+    </div>
+    <div class="modal" id="winModal" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+      <div class="modal-card">
+        <div class="trophy">🎉</div>
+        <h2 id="winTitle">Network connected!</h2>
+        <p>You helped the neurons communicate. Neurons are individual cells, and groups of neurons work with supporting cells as part of nervous tissue.</p>
+        <button class="primary" id="playAgain">Play again</button>
+      </div>
+    </div>
+  </main>
+
+  <div class="controls">
+    <div class="status" id="status" aria-live="polite">Choose a yellow axon terminal, then choose the teal dendrites of the next neuron.</div>
+    <button class="secondary" id="hintBtn">💡 Hint</button>
+    <button class="secondary" id="resetBtn">↻ Reset</button>
+    <button class="primary" id="signalBtn" disabled>▶ Send signal</button>
+  </div>
+  <div class="how">
+    <span>🧩</span>
+    <span><b>How to play:</b> Click a yellow SEND point, then click the teal RECEIVE point you think it should connect to. On a touchscreen, just tap the two points. You can undo a connection by selecting it again.</span>
+  </div>
+  <div class="bottom">
+    <span>Science note: Neurons communicate across tiny gaps called synapses; they do not physically fuse together.</span>
+    <span>Grade 8 • Nervous system</span>
+  </div>
+</div>
+
+<script>
+(() => {
+  const correct = {'A-out':'B-in','B-out':'C-in','C-out':'D-in'};
+  const connections = {};
+  let selected = null;
+  let signalTimer = null;
+  const board = document.getElementById('board');
+  const svg = document.getElementById('wires');
+  const status = document.getElementById('status');
+  const progress = document.getElementById('progress');
+  const signalBtn = document.getElementById('signalBtn');
+  const ports = [...document.querySelectorAll('.port')];
+
+  function center(el) {
+    const r = el.getBoundingClientRect(), b = board.getBoundingClientRect();
+    return {x:r.left+r.width/2-b.left, y:r.top+r.height/2-b.top};
+  }
+  function drawWires() {
+    const b = board.getBoundingClientRect();
+    svg.setAttribute('viewBox',`0 0 ${b.width} ${b.height}`);
+    svg.innerHTML = '';
+    Object.entries(connections).forEach(([from,to]) => {
+      const a = center(document.querySelector(`[data-port="${from}"]`));
+      const z = center(document.querySelector(`[data-port="${to}"]`));
+      const bend = Math.max(18, (z.x-a.x)*.45);
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d',`M ${a.x} ${a.y} C ${a.x+bend} ${a.y}, ${z.x-bend} ${z.y}, ${z.x} ${z.y}`);
+      path.setAttribute('class','wire correct');
+      svg.appendChild(path);
+    });
+  }
+  function update() {
+    const count = Object.keys(connections).length;
+    progress.textContent = `${count} of 3 connections made`;
+    signalBtn.disabled = count !== 3;
+    ports.forEach(p => {
+      const key=p.dataset.port;
+      p.classList.toggle('selected',key===selected);
+      p.classList.toggle('connected',Object.keys(connections).includes(key)||Object.values(connections).includes(key));
+    });
+    ['A','B','C','D'].forEach((n,i) => {
+      document.getElementById('cell-'+n).classList.toggle('done',i===0 ? !!connections['A-out'] : !!connections[String.fromCharCode(64+i)+'-out'] || i===3 && !!connections['C-out']);
+    });
+    drawWires();
+  }
+  function message(text,kind='') {
+    status.textContent=text;
+    status.className='status'+(kind?' '+kind:'');
+  }
+  function handlePort(port) {
+    const key=port.dataset.port;
+    if (key.endsWith('-out')) {
+      if (connections[key]) {
+        delete connections[key];
+        selected=null;
+        message('Connection removed. Choose an axon terminal to start again.');
+        update(); return;
+      }
+      selected=key;
+      message(`Neuron ${key[0]} is ready to send a message. Now choose the dendrites of the next neuron.`);
+      update(); return;
+    }
+    if (!selected) {
+      message('Start by choosing a yellow axon terminal (SEND).','bad'); return;
+    }
+    if (correct[selected]===key) {
+      connections[selected]=key;
+      const from=selected[0], to=key[0];
+      selected=null;
+      message(`Great connection! Neuron ${from} can now pass a message to Neuron ${to}.`,'good');
+      update();
+      if (Object.keys(connections).length===3) message('All connections are correct! Press “Send signal” to test your network.','good');
+    } else {
+      selected=null;
+      message('Not quite! A message leaves an axon terminal and is received by the dendrites of the next neuron. Try again.','bad');
+      update();
+    }
+  }
+  ports.forEach(p=>p.addEventListener('click',()=>handlePort(p)));
+  document.getElementById('hintBtn').addEventListener('click',()=>{
+    message('Hint: Connect A to B, B to C, and C to D. Match each yellow SEND point to the teal RECEIVE point on the next neuron.');
+  });
+  document.getElementById('resetBtn').addEventListener('click',reset);
+  document.getElementById('playAgain').addEventListener('click',()=>{
+    document.getElementById('winModal').classList.remove('show'); reset();
+  });
+  function reset() {
+    if(signalTimer) { clearInterval(signalTimer); signalTimer=null; }
+    Object.keys(connections).forEach(k=>delete connections[k]);
+    selected=null;
+    svg.querySelectorAll('.signal').forEach(x=>x.remove());
+    message('Choose a yellow axon terminal, then choose the teal dendrites of the next neuron.');
+    update();
+  }
+  function sendSignal() {
+    if(Object.keys(connections).length!==3) return;
+    signalBtn.disabled=true;
+    message('Signal travelling through the network…','good');
+    const points=['A-out','B-in','B-out','C-in','C-out','D-in'].map(k=>center(document.querySelector(`[data-port="${k}"]`)));
+    const signal=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    signal.setAttribute('r','7'); signal.setAttribute('class','signal');
+    svg.appendChild(signal);
+    let segment=0, step=0, steps=22;
+    function move() {
+      if(segment>=points.length-1) {
+        signal.remove(); signalBtn.disabled=false;
+        message('Success! The message travelled through all four neurons. Neurons communicate as part of a larger nervous tissue network.','good');
+        document.getElementById('winModal').classList.add('show');
+        return;
+      }
+      const a=points[segment], b=points[segment+1], t=step/steps;
+      signal.setAttribute('cx',a.x+(b.x-a.x)*t);
+      signal.setAttribute('cy',a.y+(b.y-a.y)*t);
+      step++;
+      if(step>steps){step=0;segment++;}
+    }
+    move();
+    signalTimer=setInterval(move,24);
+  }
+  signalBtn.addEventListener('click',sendSignal);
+  window.addEventListener('resize',drawWires);
+  if('ResizeObserver' in window) new ResizeObserver(drawWires).observe(board);
+  update();
+})();
+</script>
+</body>
+</html>
